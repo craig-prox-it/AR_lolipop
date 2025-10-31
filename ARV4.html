@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GP2601 AR Gene Mutation Lollipop Plot</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #2196F3;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group label {
+            font-weight: bold;
+            color: #333;
+            min-width: 100px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="range"] {
+            width: 200px;
+            height: 6px;
+            cursor: pointer;
+        }
+
+        .slider-value {
+            min-width: 60px;
+            text-align: right;
+            font-weight: bold;
+            color: #2196F3;
+        }
+
+        .plot-container {
+            margin: 30px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #fafafa;
+            overflow-x: auto;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 350px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            line-height: 1.5;
+            border: 2px solid #FFD700;
+        }
+
+        .tooltip-row {
+            margin: 3px 0;
+        }
+
+        .tooltip-label {
+            font-weight: bold;
+            color: #FFD700;
+        }
+
+        .tooltip-value {
+            color: #e0e0e0;
+        }
+
+        .domain-popup {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 1001;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            line-height: 1.6;
+            border: 2px solid #888;
+        }
+
+        .domain-popup-title {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: #FFD700;
+        }
+
+        .domain-popup-row {
+            margin: 4px 0;
+        }
+
+        svg {
+            font-family: Arial, sans-serif;
+        }
+
+        .lollipop-stick {
+            stroke: #999;
+            stroke-width: 1;
+        }
+
+        .lollipop-circle {
+            stroke-width: 2;
+            stroke: #333;
+            cursor: pointer;
+            transition: all 0.15s ease-out;
+            filter: drop-shadow(0 0 0px rgba(0,0,0,0));
+        }
+
+        .lollipop-circle:hover,
+        .lollipop-circle.highlighted {
+            r: 7 !important;
+            stroke-width: 2.5;
+            stroke: #FFD700;
+            filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.8)) 
+                    drop-shadow(0 0 8px rgba(255, 215, 0, 0.5))
+                    drop-shadow(0 0 12px rgba(255, 215, 0, 0.3));
+        }
+
+        .lollipop-label {
+            font-size: 10px;
+            fill: #333;
+            pointer-events: none;
+        }
+
+        .domain-rect {
+            opacity: 0.85;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .domain-rect:hover {
+            opacity: 1;
+            filter: drop-shadow(0 0 3px rgba(0,0,0,0.3));
+        }
+
+        .intron-rect {
+            fill: #CCCCCC;
+            opacity: 0.7;
+            cursor: default;
+        }
+
+        .domain-label {
+            font-size: 12px;
+            font-weight: bold;
+            fill: white;
+            pointer-events: none;
+            text-anchor: middle;
+        }
+
+        .axis-label {
+            font-size: 12px;
+            fill: #333;
+        }
+
+        .grid-line {
+            stroke: #e0e0e0;
+            stroke-dasharray: 2,2;
+            stroke-width: 1;
+        }
+
+        .table-container {
+            margin-top: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        thead {
+            background-color: #2196F3;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #1976D2;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        tbody tr {
+            background-color: white;
+            transition: background-color 0.2s;
+        }
+
+        tbody tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        tbody tr.highlighted {
+            background-color: #FFFACD;
+            box-shadow: inset 3px 0 0 #FFD700;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+
+        tbody tr.highlighted:nth-child(even) {
+            background-color: #FFFACD;
+        }
+
+        .mutation-type {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .mutation-missense {
+            background-color: #4CAF50;
+        }
+
+        .mutation-truncating {
+            background-color: #f44336;
+        }
+
+        .ic50-value {
+            font-weight: bold;
+            color: #D32F2F;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-box {
+            background-color: #f0f0f0;
+            padding: 12px 16px;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .color-legend {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-circle {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid #333;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .error-message {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #c62828;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GP2601 AR Gene Mutation Lollipop Plot</h1>
+        <p class="subtitle">Interactive visualization of AR mutations with IC50 sensitivity data</p>
+
+        <div id="loadingIndicator" class="loading">
+            Loading mutation data...
+        </div>
+
+        <div id="errorMessage" class="error-message hidden"></div>
+
+        <div id="chartSection" class="hidden">
+            <div class="stats" id="statsContainer"></div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label>IC50 Threshold:</label>
+                    <div class="slider-container">
+                        <input type="range" id="ic50Slider" min="0" max="10" value="10" step="0.1">
+                        <span class="slider-value" id="sliderValue">10.0</span>
+                        <span style="color: #666; font-size: 12px;">(lower = more selective)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="color-legend">
+                <div class="legend-item">
+                    <div class="legend-circle" style="background-color: #53D400;"></div>
+                    <span>Missense Mutation</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-circle" style="background-color: #f44336;"></div>
+                    <span>Truncating Mutation</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-circle" style="background-color: #FF9900;"></div>
+                    <span>Cancer Hotspot</span>
+                </div>
+            </div>
+
+            <div class="plot-container">
+                <svg id="lollipopChart" width="1200" height="450"></svg>
+            </div>
+
+            <div class="table-container">
+                <h2>AR Mutation Details</h2>
+                <table id="mutationTable">
+                    <thead>
+                        <tr>
+                            <th>Cell Line</th>
+                            <th>Protein Change</th>
+                            <th>Type</th>
+                            <th>Lineage</th>
+                            <th>Disease</th>
+                            <th>IC50</th>
+                            <th>AUC</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+    <div class="domain-popup" id="domainPopup" style="display: none;"></div>
+
+    <script>
+        // Data structure
+        let mutationData = [];
+        let filteredData = [];
+
+        // Color mapping for mutation types
+        const colorMap = {
+            'Full-Length (Missense)': '#53D400',
+            'Full-Length (Damaging Missense)': '#53D400',
+            'Full-Length (Hotspot Missense)': '#FF6B6B',
+            'Full-Length (Damaging Hotspot Missense)': '#FF6B6B',
+            'V7 (Truncated - Frameshift/Stop)': '#f44336',
+            'V7 (Truncated - High Impact)': '#f44336',
+            'Wild-Type': '#BABDB6'
+        };
+
+        const AR_GENE_LENGTH = 920;
+        const HORMONE_RECEP_START = 692;
+        const HORMONE_RECEP_END = 877;
+
+        // Cancer hotspot mutations
+        const CANCER_HOTSPOTS = ['T878A', 'H875Y'];
+
+        // Define exons and introns based on provided domain information
+        const exonsIntrons = [
+            { type: 'exon', start: 1, end: 449, name: 'Androgen_recep', fullName: 'Androgen receptor (N-terminal domain)', color: '#2dcf00' },
+            { type: 'intron', start: 450, end: 557 },
+            { type: 'exon', start: 558, end: 626, name: 'zf-C4', fullName: 'Zinc finger, C4 type (two domains)', color: '#ff5353' },
+            { type: 'intron', start: 627, end: 691 },
+            { type: 'exon', start: 692, end: 877, name: 'Hormone_recep', fullName: 'Ligand-binding domain of nuclear hormone receptor', color: 
+'#5b5bff' },
+            { type: 'intron', start: 878, end: 920 }
+        ];
+
+        // Extract position from protein change
+        function extractPosition(proteinChange) {
+            if (!proteinChange) return null;
+            const match = proteinChange.match(/(\d+)/);
+            return match ? parseInt(match[1]) : null;
+        }
+
+        // Check if mutation is a cancer hotspot
+        function isCancerHotspot(proteinChange) {
+            if (!proteinChange) return false;
+            return CANCER_HOTSPOTS.some(hotspot => proteinChange.includes(hotspot));
+        }
+
+        // Determine mutation type
+        function getMutationType(variantType, proteinChange) {
+            if (variantType.includes('V7')) {
+                const position = extractPosition(proteinChange);
+                // Only label as V7 if position is in Hormone_recep region (692-877)
+                if (position && position >= HORMONE_RECEP_START && position <= HORMONE_RECEP_END) {
+                    return 'V7';
+                } else {
+                    return 'Truncating';
+                }
+            } else if (variantType.toLowerCase().includes('truncat') || variantType.toLowerCase().includes('frameshift') || 
+variantType.toLowerCase().includes('stop')) {
+                return 'Truncating';
+            }
+            return 'Missense';
+        }
+
+        // Get circle color based on mutation type and hotspot status
+        function getCircleColor(variantType, proteinChange) {
+            if (isCancerHotspot(proteinChange)) {
+                return '#FF9900';
+            }
+            return colorMap[variantType] || '#999';
+        }
+
+        // Load JSON data
+        function loadData() {
+            fetch('mutation_data.json')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to load data: ${response.status} ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    initChart(data);
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    showError(`Error loading mutation data: ${error.message}. Make sure mutation_data.json is in the same directory.`);
+                });
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            document.getElementById('loadingIndicator').classList.add('hidden');
+        }
+
+        // Initialize chart
+        function initChart(data) {
+            mutationData = data.filter(d => d['AR Mutation'] && d['AR Mutation'] !== 'Wild-Type/No AR Mutation');
+            
+            if (mutationData.length === 0) {
+                showError('No mutation data found in the JSON file.');
+                return;
+            }
+
+            // Calculate max IC50 for slider
+            const maxIC50 = Math.ceil(Math.max(...mutationData.map(d => parseFloat(d.IC50) || 0)));
+            document.getElementById('ic50Slider').max = maxIC50;
+            document.getElementById('ic50Slider').value = maxIC50;
+            document.getElementById('sliderValue').textContent = maxIC50.toFixed(1);
+
+            updateChart();
+            updateTable();
+            updateStats();
+
+            // Show chart section
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            document.getElementById('chartSection').classList.remove('hidden');
+        }
+
+        // Update chart based on slider
+        function updateChart() {
+            const threshold = parseFloat(document.getElementById('ic50Slider').value);
+            filteredData = mutationData.filter(d => {
+                const ic50 = parseFloat(d.IC50);
+                return isNaN(ic50) ? true : ic50 <= threshold;
+            });
+
+            drawLollipop();
+        }
+
+        // Draw lollipop chart
+        function drawLollipop() {
+            const svg = d3.select('#lollipopChart');
+            svg.selectAll('*').remove();
+
+            const margin = { top: 30, right: 30, bottom: 100, left: 60 };
+            const width = Math.max(1200, 50 + filteredData.length * 15) - margin.left - margin.right;
+            const height = 450 - margin.top - margin.bottom;
+
+            const actualWidth = width + margin.left + margin.right;
+            svg.attr('width', actualWidth).attr('height', height + margin.top + margin.bottom);
+
+            const g = svg.append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+
+            // Background
+            g.append('rect')
+                .attr('width', width)
+                .attr('height', height)
+                .attr('fill', '#fafafa')
+                .attr('opacity', 0.5);
+
+            // Scales
+            const xScale = d3.scaleLinear()
+                .domain([0, AR_GENE_LENGTH])
+                .range([0, width]);
+
+            const yScale = d3.scaleLinear()
+                .domain([0, Math.max(...filteredData.map(d => parseFloat(d.IC50) || 0), 1)])
+                .range([height, 0]);
+
+            // Grid lines
+            g.selectAll('.grid-line')
+                .data(yScale.ticks(5))
+                .enter()
+                .append('line')
+                .attr('class', 'grid-line')
+                .attr('x1', 0)
+                .attr('x2', width)
+                .attr('y1', d => yScale(d))
+                .attr('y2', d => yScale(d));
+
+            // Draw exons and introns
+            const domainY = height + 20;
+            const exonHeight = 18;
+            const intronHeight = 4;
+
+            exonsIntrons.forEach(element => {
+                const x1 = xScale(element.start);
+                const x2 = xScale(element.end);
+                const elementWidth = Math.max(x2 - x1, 1);
+
+                if (element.type === 'exon') {
+                    // Draw exon
+                    g.append('rect')
+                        .attr('class', 'domain-rect')
+                        .attr('x', x1)
+                        .attr('y', domainY)
+                        .attr('width', elementWidth)
+                        .attr('height', exonHeight)
+                        .attr('fill', element.color)
+                        .attr('rx', 2)
+                        .on('mouseover', function(event) {
+                            showDomainPopup(event, element);
+                        })
+                        .on('mouseout', function() {
+                            document.getElementById('domainPopup').style.display = 'none';
+                        });
+
+                    // Add label if wide enough
+                    if (elementWidth > 50) {
+                        g.append('text')
+                            .attr('class', 'domain-label')
+                            .attr('x', (x1 + x2) / 2)
+                            .attr('y', domainY + exonHeight / 2)
+                            .attr('dy', '0.3em')
+                            .text(element.name);
+                    }
+                } else {
+                    // Draw intron
+                    g.append('rect')
+                        .attr('class', 'intron-rect')
+                        .attr('x', x1)
+                        .attr('y', domainY + (exonHeight - intronHeight) / 2)
+                        .attr('width', elementWidth)
+                        .attr('height', intronHeight)
+                        .attr('rx', 1);
+                }
+            });
+
+            // Lollipops
+            const lollipops = g.selectAll('.lollipop')
+                .data(filteredData, (d, i) => i)
+                .enter()
+                .append('g')
+                .attr('class', 'lollipop')
+                .attr('data-index', (d, i) => i);
+
+            // Stick
+            lollipops.append('line')
+                .attr('class', 'lollipop-stick')
+                .attr('x1', d => xScale(extractPosition(d['AR Mutation']) || 0))
+                .attr('x2', d => xScale(extractPosition(d['AR Mutation']) || 0))
+                .attr('y1', height)
+                .attr('y2', d => yScale(parseFloat(d.IC50) || 0));
+
+            // Circle
+            const circles = lollipops.append('circle')
+                .attr('class', 'lollipop-circle')
+                .attr('cx', d => xScale(extractPosition(d['AR Mutation']) || 0))
+                .attr('cy', d => yScale(parseFloat(d.IC50) || 0))
+                .attr('r', 4)
+                .attr('fill', d => getCircleColor(d['AR Variant Type'], d['AR Mutation']))
+                .attr('data-index', (d, i) => i)
+                .on('mouseover', function(event, d) {
+                    showTooltip(event, d);
+                    const idx = d3.select(this).attr('data-index');
+                    d3.select(this).classed('highlighted', true);
+                    const row = document.getElementById(`table-row-${idx}`);
+                    if (row) row.classList.add('highlighted');
+                })
+                .on('mouseout', function() {
+                    d3.select('#tooltip').style('display', 'none');
+                    d3.select(this).classed('highlighted', false);
+                    d3.selectAll('tr.highlighted').classed('highlighted', false);
+                })
+                .on('click', function(event, d) {
+                    const idx = d3.select(this).attr('data-index');
+                    const row = document.getElementById(`table-row-${idx}`);
+                    if (row) {
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        row.classList.add('highlighted');
+                        setTimeout(() => row.classList.remove('highlighted'), 2000);
+                    }
+                });
+
+            // Labels
+            lollipops.append('text')
+                .attr('class', 'lollipop-label')
+                .attr('x', d => xScale(extractPosition(d['AR Mutation']) || 0))
+                .attr('y', d => yScale(parseFloat(d.IC50) || 0) - 15)
+                .attr('text-anchor', 'middle')
+                .text(d => d['AR Mutation'].split(';')[0])
+                .style('font-size', '9px');
+
+            // X-axis
+            const xAxis = d3.axisBottom(xScale).ticks(10);
+            g.append('g')
+                .attr('transform', `translate(0,${height})`)
+                .call(xAxis)
+                .append('text')
+                .attr('x', width / 2)
+                .attr('y', 80)
+                .attr('fill', '#333')
+                .attr('text-anchor', 'middle')
+                .attr('class', 'axis-label')
+                .text('AR Protein Position (aa)');
+
+            // Y-axis
+            const yAxis = d3.axisLeft(yScale).ticks(5);
+            g.append('g')
+                .call(yAxis)
+                .append('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('y', 0 - margin.left)
+                .attr('x', 0 - (height / 2))
+                .attr('dy', '1em')
+                .attr('fill', '#333')
+                .attr('text-anchor', 'middle')
+                .attr('class', 'axis-label')
+                .text('IC50 (µM)');
+        }
+
+        // Show tooltip for mutations
+        function showTooltip(event, d) {
+            const tooltip = document.getElementById('tooltip');
+            const ic50 = parseFloat(d.IC50);
+            const mutationType = getMutationType(d['AR Variant Type'], d['AR Mutation']);
+
+            let html = `
+                <div class="tooltip-row"><span class="tooltip-label">Cell Line:</span> ${d['Cell line'] || 'N/A'}</div>
+                <div class="tooltip-row"><span class="tooltip-label">Mutation:</span> ${d['AR Mutation'] || 'N/A'}</div>
+                <div class="tooltip-row"><span class="tooltip-label">Type:</span> ${mutationType}</div>
+                <div class="tooltip-row"><span class="tooltip-label">Lineage:</span> ${d.Lineage || 'N/A'}</div>
+                <div class="tooltip-row"><span class="tooltip-label">Disease:</span> ${d['Primary disease'] || 'N/A'}</div>
+                <div class="tooltip-row" style="margin-top: 6px; border-top: 1px solid #555; padding-top: 6px;">
+                    <span class="tooltip-label">IC50:</span> <span style="color: #FFB74D;">${isNaN(ic50) ? 'N/A' : ic50.toFixed(2)} µM</span>
+                </div>
+                <div class="tooltip-row">
+                    <span class="tooltip-label">AUC:</span> ${d.AUC || 'N/A'}
+                </div>
+            `;
+
+            tooltip.innerHTML = html;
+            tooltip.style.display = 'block';
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY + 10) + 'px';
+        }
+
+        // Show popup for domain hover
+        function showDomainPopup(event, domain) {
+            const popup = document.getElementById('domainPopup');
+            
+            let html = `
+                <div class="domain-popup-title">${domain.name}</div>
+                <div class="domain-popup-row"><span class="tooltip-label">Full Name:</span> ${domain.fullName}</div>
+                <div class="domain-popup-row"><span class="tooltip-label">Position:</span> AA ${domain.start} - ${domain.end}</div>
+                <div class="domain-popup-row"><span class="tooltip-label">Length:</span> ${domain.end - domain.start + 1} amino acids</div>
+            `;
+
+            popup.innerHTML = html;
+            popup.style.display = 'block';
+            popup.style.left = (event.pageX + 10) + 'px';
+            popup.style.top = (event.pageY + 10) + 'px';
+        }
+
+        // Update table
+        function updateTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            if (filteredData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="no-data">No mutations found at this IC50 threshold</td></tr>';
+                return;
+            }
+
+            filteredData.forEach((d, i) => {
+                const ic50 = parseFloat(d.IC50);
+                const mutationType = getMutationType(d['AR Variant Type'], d['AR Mutation']);
+                const isTruncating = mutationType === 'Truncating' || mutationType === 'V7';
+                const mutationClass = isTruncating ? 'mutation-truncating' : 'mutation-missense';
+
+                const row = document.createElement('tr');
+                row.id = `table-row-${i}`;
+                row.innerHTML = `
+                    <td style="font-weight: bold;">${d['Cell line'] || 'N/A'}</td>
+                    <td>${d['AR Mutation'] || 'N/A'}</td>
+                    <td><span class="mutation-type ${mutationClass}">${mutationType}</span></td>
+                    <td>${d.Lineage || 'N/A'}</td>
+                    <td>${d['Primary disease'] || 'N/A'}</td>
+                    <td class="ic50-value">${isNaN(ic50) ? 'N/A' : ic50.toFixed(2)} µM</td>
+                    <td>${d.AUC || 'N/A'}</td>
+                `;
+
+                row.addEventListener('mouseover', () => {
+                    row.classList.add('highlighted');
+                    d3.selectAll(`.lollipop[data-index="${i}"] circle`).classed('highlighted', true);
+                });
+
+                row.addEventListener('mouseout', () => {
+                    row.classList.remove('highlighted');
+                    d3.selectAll(`.lollipop[data-index="${i}"] circle`).classed('highlighted', false);
+                });
+
+                tbody.appendChild(row);
+            });
+        }
+
+        // Update stats
+        function updateStats() {
+            const statsContainer = document.getElementById('statsContainer');
+            const truncating = filteredData.filter(d => {
+                const type = getMutationType(d['AR Variant Type'], d['AR Mutation']);
+                return type === 'Truncating' || type === 'V7';
+            }).length;
+            const missense = filteredData.length - truncating;
+            const avgIC50 = filteredData.length > 0 
+                ? (filteredData.reduce((sum, d) => sum + (parseFloat(d.IC50) || 0), 0) / filteredData.length).toFixed(2)
+                : 'N/A';
+
+            statsContainer.innerHTML = `
+                <div class="stat-box">
+                    <div class="stat-label">Total Mutations</div>
+                    <div class="stat-value">${filteredData.length}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Missense</div>
+                    <div class="stat-value" style="color: #53D400;">${missense}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Truncating</div>
+                    <div class="stat-value" style="color: #f44336;">${truncating}</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Mean IC50</div>
+                    <div class="stat-value" style="color: #D32F2F;">${avgIC50} µM</div>
+                </div>
+            `;
+        }
+
+        // Slider event listener
+        document.getElementById('ic50Slider').addEventListener('input', function() {
+            document.getElementById('sliderValue').textContent = parseFloat(this.value).toFixed(1);
+            updateChart();
+            updateTable();
+            updateStats();
+        });
+
+        // Tooltip follow mouse
+        document.addEventListener('mousemove', function(event) {
+            const tooltip = document.getElementById('tooltip');
+            if (tooltip.style.display === 'block') {
+                tooltip.style.left = (event.pageX + 10) + 'px';
+                tooltip.style.top = (event.pageY + 10) + 'px';
+            }
+
+            const popup = document.getElementById('domainPopup');
+            if (popup.style.display === 'block') {
+                popup.style.left = (event.pageX + 10) + 'px';
+                popup.style.top = (event.pageY + 10) + 'px';
+            }
+        });
+
+        // Load data on page load
+        window.addEventListener('load', loadData);
+    </script>
+</body>
+</html>
